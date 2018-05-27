@@ -2,6 +2,45 @@
 # vi: set ft=ruby :
 #Vagrant.require_plugin "vagrant-reload"
 
+# class VagrantPlugins::ProviderVirtualBox::Action::SetName
+#   alias_method :original_call, :call
+#   def call(env)
+#     machine = env[:machine]
+#     driver = machine.provider.driver
+#     uuid = driver.instance_eval { @uuid }
+#     ui = env[:ui]
+#
+#     # Find out folder of VM
+#     vm_folder = ""
+#     vm_info = driver.execute("showvminfo", uuid, "--machinereadable")
+#     lines = vm_info.split("\n")
+#     lines.each do |line|
+#       if line.start_with?("CfgFile")
+#         vm_folder = line.split("=")[1].gsub('"','')
+#         vm_folder = File.expand_path("..", vm_folder)
+#         ui.info "VM Folder is: #{vm_folder}"
+#       end
+#     end
+#
+#     size = 10240
+#     disk_file = vm_folder + "/disk1.vmdk"
+#
+#     ui.info "Adding disk to VM"
+#     if File.exist?(disk_file)
+#       ui.info "Disk already exists"
+#     else
+#       ui.info "Creating new disk"
+#       driver.execute("createmedium", "disk", "--filename", disk_file, "--size", "#{size}", "--format", "VMDK")
+#       ui.info "Attaching disk to VM"
+#       driver.execute('storageattach', uuid, '--storagectl', "SATA Controller", '--port', "1", '--type', 'hdd', '--medium', disk_file)
+#     end
+#
+#     original_call(env)
+#   end
+# end
+
+file_to_disk = File.realpath( "." ).to_s + "/disk.vdi"
+
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
@@ -13,7 +52,8 @@ Vagrant.configure("2") do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "bento/ubuntu-18.04"
+  #config.vm.box = "bento/ubuntu-18.04"
+  config.vm.box = "ubuntu/bionic64"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -44,18 +84,33 @@ Vagrant.configure("2") do |config|
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
   #
+
   config.vm.provider "virtualbox" do |vb|
     # Display the VirtualBox GUI when booting the machine
     vb.gui = true
     # Customize the amount of memory on the VM:
     vb.memory = "4096"
-	# CPUs
-	vb.cpus = 4
-	# Clipboard
-	vb.customize ['modifyvm', :id, '--clipboard', 'bidirectional']
-	# Video configuration
-	vb.customize ["modifyvm", :id, "--vram", "64"]
-	vb.customize ["modifyvm", :id, "--accelerate3d", "on"]
+  	# CPUs
+  	vb.cpus = 4
+  	# Clipboard
+  	vb.customize ['modifyvm', :id, '--clipboard', 'bidirectional']
+  	# Video configuration
+  	vb.customize ["modifyvm", :id, "--vram", "64"]
+  	vb.customize ["modifyvm", :id, "--accelerate3d", "on"]
+    if ARGV[0] == "up" && ! File.exist?(file_to_disk)
+      vb.customize [
+           'createhd',
+           '--filename', file_to_disk,
+           '--format', 'VDI',
+           '--size', 30 * 1024 # 30 GB
+           ]
+      vb.customize [
+           'storageattach', :id,
+           '--storagectl', 'SATAController', # The name may vary
+           '--port', 1, '--device', 0,
+           '--type', 'hdd', '--medium', file_to_disk
+           ]
+    end
   end
   #
   # View the documentation for the provider you are using for more
@@ -75,6 +130,7 @@ Vagrant.configure("2") do |config|
 	#proxy
 	#echo 'Acquire::http::Proxy "http://192.168.1.19:3128";' >> /etc/apt/apt.conf
 	#export http_proxy=http://192.168.1.19:3128
+
 
 	#update repo info
   apt-get update
